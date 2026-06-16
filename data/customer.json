@@ -1,0 +1,50 @@
+[
+    {
+        "name": "Alfamart Gedebage",
+        "demand_kg": 16.71
+    },
+    {
+        "name": "Alfamart Riung Bandung",
+        "demand_kg": 2.58
+    },
+    {
+        "name": "Alfamart Cipamokolan",
+        "demand_kg": 8.33
+    },
+    {
+        "name": "Alfamart Grand Sharon",
+        "demand_kg": 7.13
+    },
+    {
+        "name": "Alfamart Tata Surya",
+        "demand_kg": 18.94
+    },
+    {
+        "name": "Alfamart Margahayu Raya",
+        "demand_kg": 17.56
+    },
+    {
+        "name": "Alfamart Soekarno Hatta 725",
+        "demand_kg": 22.52
+    },
+    {
+        "name": "Alfamart Magna Summarecon",
+        "demand_kg": 4.0
+    },
+    {
+        "name": "Alfamart Panghegar Baru",
+        "demand_kg": 11.7
+    },
+    {
+        "name": "Alfamart Puri Cisaranten (Cicukang)",
+        "demand_kg": 2.69
+    },
+    {
+        "name": "Alfamart Pacuan Kuda",
+        "demand_kg": 7.03
+    },
+    {
+        "name": "Alfamart Cijambe Baru",
+        "demand_kg": 13.62
+    }
+]
