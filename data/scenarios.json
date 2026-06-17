@@ -1,0 +1,10 @@
+{
+    "subsidi": {
+        "label": "Subsidi (BBM Murah)",
+        "fuel_price_rp_per_liter": 5000
+    },
+    "krisis": {
+        "label": "Krisis (BBM Mahal)",
+        "fuel_price_rp_per_liter": 20000
+    }
+}
