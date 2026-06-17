@@ -20,4 +20,8 @@ def greedy_route(graph, hub, customers):
         current = nearest
 
     route.append(hub)
-    return route
+    
+    # Hitung total jarak rute hasil akhir
+    total_distance = sum(graph.get_distance(route[i], route[i+1]) for i in range(len(route) - 1))
+    
+    return route, total_distance

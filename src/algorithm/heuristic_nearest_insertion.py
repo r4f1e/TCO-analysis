@@ -45,4 +45,7 @@ def nearest_insertion_route(graph, hub, customers):
         route.insert(best_idx, next_node)
         unvisited.remove(next_node)
         
-    return route
+    # Hitung total jarak rute hasil akhir
+    total_distance = sum(graph.get_distance(route[i], route[i+1]) for i in range(len(route) - 1))
+        
+    return route, total_distance
