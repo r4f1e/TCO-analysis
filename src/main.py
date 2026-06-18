@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import json
+import matplotlib.pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -152,32 +153,104 @@ def print_comparison_table(results):
         winner = "Heuristic Greedy" if g_tco <= e_tco else "Exact B&B"
         print(f"  {r['scenario']['label']:<30}: {winner} (selisih TCO Rp {selisih:,.2f})")
 
-    # Break-even analysis
+
+def generate_empirical_chart(ref_result, graph_adapter, raw_customer_data):
+    W = 70
     print("\n" + "  " + "-" * (W - 2))
-    print("  ANALISIS BREAK-EVEN")
+    print("  SIMULASI EMPIRIS & VISUALISASI GRAFIK")
     print("  " + "-" * (W - 2))
 
-    # Ambil liter dari salah satu skenario untuk hitung break-even
-    # fuel_cost = price * liters  =>  liters = fuel_cost / price
-    ref = results[0]
-    ref_price = ref["scenario"]["fuel_price_rp_per_liter"]
-    liters_greedy = ref["greedy"]["tco"]["fuel_cost"] / ref_price
-    liters_exact  = ref["exact"]["tco"]["fuel_cost"]  / ref_price
-    delta_liters  = liters_greedy - liters_exact  # greedy pakai lebih banyak
+    prices = list(range(5000, 1000001, 100))
+    
+    route_greedy = ref_result["greedy"]["route"]
+    elapsed_greedy = ref_result["greedy"]["elapsed"]
+    
+    route_exact = ref_result["exact"]["route"]
+    elapsed_exact = ref_result["exact"]["elapsed"]
+    
+    fuel_greedy_vals, fuel_exact_vals = [], []
+    comp_greedy_vals, comp_exact_vals = [], []
+    tco_greedy_vals, tco_exact_vals = [], []
+    
+    breakeven_price = None
 
-    avg_compute_exact  = sum(r["exact"]["tco"]["compute_cost"]  for r in results) / len(results)
-    avg_compute_greedy = sum(r["greedy"]["tco"]["compute_cost"] for r in results) / len(results)
-    delta_compute = avg_compute_exact - avg_compute_greedy  # exact lebih mahal
+    # Uji Coba Empiris
+    for p in prices:
+        sys.stdout.write(f"\r  Sedang melakukan simulasi: Rp {p:,}")
+        sys.stdout.flush()
 
-    if delta_liters > 0:
-        breakeven_price = delta_compute / delta_liters
-        print(f"  Selisih konsumsi BBM : {delta_liters:.4f} liter (Greedy boros)")
-        print(f"  Selisih biaya komput.: Rp {delta_compute:,.2f} (Exact lebih mahal)")
-        print(f"  Break-even harga BBM : Rp {breakeven_price:,.0f}/liter")
-        print(f"  => Exact baru menguntungkan jika harga BBM > Rp {breakeven_price:,.0f}/liter")
+        fg = calculate_fuel_cost(route_greedy, graph_adapter, raw_customer_data, p)
+        tg = calculate_tco(fg, elapsed_greedy)
+        
+        fe = calculate_fuel_cost(route_exact, graph_adapter, raw_customer_data, p)
+        te = calculate_tco(fe, elapsed_exact)
+        
+        fuel_greedy_vals.append(tg["fuel_cost"])
+        fuel_exact_vals.append(te["fuel_cost"])
+        comp_greedy_vals.append(tg["compute_cost"])
+        comp_exact_vals.append(te["compute_cost"])
+        tco_greedy_vals.append(tg["tco"])
+        tco_exact_vals.append(te["tco"])
+
+        # Mencari break even
+        if breakeven_price is None and te["tco"] < tg["tco"]:
+            breakeven_price = p
+
+    print("\n  => Simulasi empiris selesai!")
+
+    if breakeven_price:
+        print(f"  => Ditemukan titik Break-Even empiris pada harga BBM: Rp {breakeven_price:,.0f}/liter")
     else:
-        print("  Break-even tidak dapat dihitung (selisih liter = 0)")
+        print("  => Tidak ditemukan titik Break-Even hingga harga Rp 1.000.000/liter")
+    
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 15))
 
+    # Grafik 1: Biaya Bensin
+    ax1.plot(prices, fuel_greedy_vals, label='Greedy (Boros BBM)', color='red', marker='.', markersize=4)
+    ax1.plot(prices, fuel_exact_vals, label='Exact B&B (Hemat BBM)', color='blue', marker='.', markersize=4)
+    ax1.set_title('1. Perbandingan Biaya Bensin')
+    ax1.set_xlabel('Harga BBM (Rp/liter)')
+    ax1.set_ylabel('Biaya Bensin (Rp)')
+    ax1.ticklabel_format(style='plain', axis='y')
+    ax1.legend()
+    ax1.grid(True, linestyle='--', alpha=0.7)
+
+    # Grafik 2: Biaya Komputasi Server
+    ax2.plot(prices, comp_greedy_vals, label='Greedy (Komputasi Rendah)', color='red', marker='.', markersize=4)
+    ax2.plot(prices, comp_exact_vals, label='Exact B&B (Komputasi Tinggi)', color='blue', marker='.', markersize=4)
+    ax2.set_title('2. Perbandingan Biaya Komputasi / Server')
+    ax2.set_xlabel('Harga BBM (Rp/liter)')
+    ax2.set_ylabel('Biaya Server (Rp)')
+    ax2.ticklabel_format(style='plain', axis='y')
+    ax2.legend()
+    ax2.grid(True, linestyle='--', alpha=0.7)
+
+    # Grafik 3: Total Cost of Ownership (TCO)
+    ax3.plot(prices, tco_greedy_vals, label='TCO Greedy', color='red', marker='.', markersize=4)
+    ax3.plot(prices, tco_exact_vals, label='TCO Exact B&B', color='blue', marker='.', markersize=4)
+    
+    if breakeven_price:
+        idx = prices.index(breakeven_price)
+        breakeven_tco = tco_exact_vals[idx]
+        ax3.axvline(x=breakeven_price, color='green', linestyle='--', label=f'Break-Even (Rp {breakeven_price:,.0f})')
+        ax3.scatter([breakeven_price], [breakeven_tco], color='green', s=80, zorder=5)
+
+    ax3.set_title('3. Total Cost of Ownership (TCO) & Titik Persilangan (Break-Even)')
+    ax3.set_xlabel('Harga BBM (Rp/liter)')
+    ax3.set_ylabel('Total Biaya TCO (Rp)')
+    ax3.ticklabel_format(style='plain', axis='y')
+    ax3.legend()
+    ax3.grid(True, linestyle='--', alpha=0.7)
+
+    plt.tight_layout()
+
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    docs_dir = os.path.join(base_dir, 'docs')
+    os.makedirs(docs_dir, exist_ok=True)
+    
+    chart_path = os.path.join(docs_dir, 'breakeven_chart.png')
+    plt.savefig(chart_path)
+    print(f"  => Grafik analisis 3 bagian disimpan di: {chart_path}")
     print("=" * W)
 
 
@@ -194,7 +267,6 @@ def main():
         print(f"Skenario '{scenario_key}' tidak dikenal. Pilihan: {', '.join(scenarios.keys())}")
         sys.exit(1)
 
-    # Tentukan skenario yang akan dijalankan
     keys_to_run = [scenario_key] if scenario_key else list(scenarios.keys())
 
     graph_dict, hub_node, customers_list, raw_customer_data = load_simulation_data()
@@ -210,9 +282,11 @@ def main():
         results.append(r)
         print_scenario_detail(r)
 
-    # Tampilkan tabel komparasi hanya jika ada lebih dari satu skenario
     if len(results) > 1:
         print_comparison_table(results)
+
+    if len(results) > 0:
+        generate_empirical_chart(results[0], graph_adapter, raw_customer_data)
 
 
 if __name__ == "__main__":
