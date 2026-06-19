@@ -2,6 +2,8 @@ import sys
 import os
 import time
 import json
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -181,6 +183,76 @@ def print_comparison_table(results):
     print("=" * W)
 
 
+def generate_breakeven_chart(results):
+    ref       = results[0]
+    ref_price = ref["scenario"]["fuel_price_rp_per_liter"]
+
+    liters_greedy = ref["greedy"]["tco"]["fuel_cost"] / ref_price
+    liters_exact  = ref["exact"]["tco"]["fuel_cost"]  / ref_price
+
+    avg_compute_greedy = sum(r["greedy"]["tco"]["compute_cost"] for r in results) / len(results)
+    avg_compute_exact  = sum(r["exact"]["tco"]["compute_cost"]  for r in results) / len(results)
+
+    delta_liters  = liters_greedy - liters_exact
+    delta_compute = avg_compute_exact - avg_compute_greedy
+    breakeven_price = delta_compute / delta_liters if delta_liters > 0 else None
+
+    max_price = int(breakeven_price * 1.3) if breakeven_price else 1_000_000
+    prices    = [p for p in range(0, max_price + 1, max(1, max_price // 300))]
+
+    tco_greedy_line = [liters_greedy * p + avg_compute_greedy for p in prices]
+    tco_exact_line  = [liters_exact  * p + avg_compute_exact  for p in prices]
+
+    fig, ax = plt.subplots(figsize=(11, 6))
+
+    ax.plot(prices, tco_greedy_line, label="Heuristic Greedy", color="#1565C0", linewidth=2)
+    ax.plot(prices, tco_exact_line,  label="Exact Branch & Bound", color="#C62828", linewidth=2)
+
+    if breakeven_price:
+        be_tco = liters_greedy * breakeven_price + avg_compute_greedy
+        ax.axvline(x=breakeven_price, color="#555", linestyle="--", linewidth=1.2)
+        ax.scatter([breakeven_price], [be_tco], color="black", zorder=5, s=70)
+        ax.annotate(
+            f"  Break-even\n  Rp {breakeven_price:,.0f}/L",
+            xy=(breakeven_price, be_tco),
+            fontsize=9, color="#333"
+        )
+
+    scenario_colors = {"subsidi": "#2E7D32", "krisis": "#E65100"}
+    for r in results:
+        p     = r["scenario"]["fuel_price_rp_per_liter"]
+        color = scenario_colors.get(r["key"], "gray")
+        ax.axvline(x=p, color=color, linestyle=":", linewidth=1.4, alpha=0.85,
+                   label=f"{r['scenario']['label']} - Rp {p:,}/L")
+
+    if breakeven_price:
+        mid_left  = breakeven_price * 0.4
+        mid_right = breakeven_price * 1.15
+        y_top = max(tco_greedy_line[-1], tco_exact_line[-1]) * 0.85
+        ax.text(mid_left,  y_top, "Greedy lebih hemat",              fontsize=9, color="#1565C0", ha="center")
+        ax.text(mid_right, y_top, "Exact lebih hemat\n(tidak realistis)", fontsize=9, color="#C62828", ha="center")
+
+    ax.set_xlabel("Harga BBM (Rp/liter)", fontsize=11)
+    ax.set_ylabel("Total Cost of Ownership / TCO (Rp)", fontsize=11)
+    ax.set_title("Break-Even Analysis: Heuristic Greedy vs Exact Branch & Bound", fontsize=13, fontweight="bold")
+    ax.legend(fontsize=9, loc="upper left")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"Rp {x:,.0f}"))
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"Rp {x:,.0f}"))
+    plt.xticks(rotation=20, ha="right")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    base_dir    = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    docs_dir    = os.path.join(base_dir, 'docs')
+    os.makedirs(docs_dir, exist_ok=True)
+    output_path = os.path.join(docs_dir, 'breakeven_chart.png')
+    fig.savefig(output_path, dpi=150)
+    fig.clear()
+    plt.close(fig)
+
+    print(f"\n  Grafik break-even disimpan di: {output_path}")
+
+
 def main():
     mode, scenario_key = parse_args()
 
@@ -213,6 +285,7 @@ def main():
     # Tampilkan tabel komparasi hanya jika ada lebih dari satu skenario
     if len(results) > 1:
         print_comparison_table(results)
+        generate_breakeven_chart(results)
 
 
 if __name__ == "__main__":

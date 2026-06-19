@@ -1,132 +1,145 @@
-# TCO Analysis — Last-Mile Delivery Route Simulator
+# TCO Analysis: Last-Mile Delivery Route Simulator
 
-Simulasi komputasi yang membandingkan dua arsitektur algoritma pencarian rute kurir (*Last-Mile Delivery*) pada dua skenario ekonomi berbeda, untuk membuktikan kondisi finansial di mana masing-masing algoritma lebih menguntungkan.
+Proyek ini mensimulasikan dua pendekatan algoritma pencarian rute kurir dan membandingkan total biaya operasionalnya pada dua kondisi harga BBM yang berbeda. Tujuannya sederhana: membuktikan secara angka, bukan hanya teori, kapan algoritma yang lebih mahal secara komputasi benar-benar worth it.
 
 ---
 
 ## 1. Cara Menjalankan Program
 
-### Persyaratan
-- Python 3.8 atau lebih baru
-- Koneksi internet aktif (untuk kalkulasi matriks jarak via OSRM API)
+### Yang dibutuhkan
+- Python 3.8 ke atas
+- Koneksi internet (dipakai sekali untuk mengambil data jarak via OSRM API)
 
-### Instalasi
+### Instalasi dependensi
 ```bash
 pip install -r requirements.txt
 ```
 
-### Langkah 1 — Generate Matriks Jarak (sekali saja)
-Ubah koordinat lokasi di `data/lokasi.json` menjadi matriks jarak nyata (km) via OSRM API:
+### Langkah 1: Generate matriks jarak (cukup sekali)
+
+Sebelum simulasi bisa dijalankan, koordinat lokasi di `data/lokasi.json` perlu dikonversi dulu menjadi matriks jarak nyata antar titik (dalam km). Proses ini memanggil OSRM API dan menyimpan hasilnya ke `data/generated/graph.csv`.
+
 ```bash
 python src/main.py --calculate-graph
 ```
-Perintah ini membuat file `data/generated/graph.csv`. Ulangi hanya jika ada perubahan lokasi.
 
-### Langkah 2 — Jalankan Simulasi
+Langkah ini hanya perlu diulang kalau ada perubahan lokasi di `lokasi.json`.
 
-**Bandingkan semua skenario sekaligus (direkomendasikan):**
+### Langkah 2: Jalankan simulasi
+
+**Untuk melihat perbandingan lengkap kedua skenario sekaligus (ini yang paling informatif):**
 ```bash
 python src/main.py
 ```
 
-**Jalankan satu skenario tertentu:**
+**Atau kalau mau jalankan satu skenario saja:**
 ```bash
 python src/main.py --scenario subsidi
 python src/main.py --scenario krisis
 ```
 
-**Output yang ditampilkan:**
-- Urutan rute untuk setiap algoritma
-- Total jarak tempuh (km)
-- Waktu eksekusi presisi (detik)
-- Biaya BBM, Biaya Komputasi Server, dan TCO
-- Tabel komparasi lintas skenario + analisis break-even
+Program akan menampilkan urutan rute, jarak tempuh, waktu eksekusi tiap algoritma, rincian biaya BBM dan komputasi, serta TCO. Kalau dijalankan tanpa `--scenario`, ada tabel perbandingan lintas skenario, analisis break-even di terminal, dan grafik break-even yang otomatis tersimpan ke `docs/breakeven_chart.png`.
 
 ---
 
-## 2. Pemilihan Algoritma
+## 2. Kenapa Algoritma Ini yang Dipilih?
 
-### Algoritma A — Heuristik: Nearest Neighbor Greedy
-**Cara kerja:** Dari hub, selalu kunjungi pelanggan terdekat yang belum dikunjungi, ulangi sampai semua terkunjungi, lalu kembali ke hub.
+### Algoritma A: Nearest Neighbor Greedy (Heuristik)
 
-**Alasan dipilih:**
-- Implementasi from-scratch sederhana dan mudah diaudit
-- Kompleksitas O(n²) menjamin eksekusi sangat cepat untuk n berapa pun
-- Representatif sebagai baseline heuristik "greedy" yang paling umum digunakan di industri last-mile
+Cara kerjanya intuitif: dari hub, kurir selalu bergerak ke pelanggan terdekat yang belum dikunjungi, sampai semua selesai, lalu balik ke hub.
 
-**Trade-off:** Tidak menjamin rute optimal — solusi bisa 15–25% lebih jauh dari optimal, tergantung distribusi titik.
+Alasan dipilih sebagai algoritma heuristik:
+- Mudah dipahami dan diimplementasikan dari nol tanpa library eksternal
+- Kompleksitas O(n²) artinya tetap cepat meskipun jumlah pelanggan bertambah
+- Ini adalah pendekatan greedy paling umum dipakai di industri logistik sebagai baseline
 
-### Algoritma B — Eksak: Branch and Bound (B&B) with Lower Bound Pruning
-**Cara kerja:** Eksplorasi rekursif semua permutasi rute. Setiap cabang dipangkas (*pruned*) jika estimasi lower bound jarak sisanya sudah melebihi solusi terbaik yang sudah ditemukan.
+Kelemahannya: tidak ada garansi rute optimal. Hasilnya bisa 15-25% lebih panjang dari rute terbaik, tergantung bagaimana titik-titik pelanggan tersebar.
 
-**Alasan dipilih atas Held-Karp (DP):**
-- B&B memiliki worst-case yang sama dengan brute force (O(n!)), namun pruning adaptif membuat B&B jauh lebih cepat dalam praktik pada dataset berukuran kecil-menengah (n ≤ 15)
-- Held-Karp memiliki kompleksitas waktu *teoritis* lebih baik — O(n²·2ⁿ) — tetapi membutuhkan memori O(n·2ⁿ) yang tumbuh secara eksponensial
-- Untuk n = 12 pelanggan: Held-Karp butuh 12² × 4096 = ~600K entries memori; B&B dengan pruning baik menyelesaikan dalam < 1 detik
+### Algoritma B: Branch and Bound dengan Lower Bound Pruning (Eksak)
 
-**Trade-off:** Waktu eksekusi meledak secara eksponensial saat n membesar (> 20 pelanggan praktis tidak feasible tanpa optimasi tambahan).
+Cara kerjanya: eksplorasi semua kemungkinan urutan kunjungan secara rekursif. Bedanya dengan brute force, setiap cabang yang sudah dipastikan tidak akan menghasilkan solusi lebih baik langsung dipotong (pruning), sehingga tidak perlu diteruskan.
+
+Alasan dipilih sebagai algoritma eksak:
+- Menjamin rute yang benar-benar optimal, bukan sekadar estimasi
+- Pruning adaptif membuat B&B jauh lebih cepat dari brute force pada dataset kecil-menengah (n <= 15)
+- Implementasi rekursif dari nol cukup straightforward dan transparan untuk diaudit
+
+Kelemahannya: saat jumlah pelanggan melewati sekitar 20 titik, waktu eksekusinya mulai meledak secara eksponensial.
 
 ---
 
 ## 3. Analisis Kompleksitas (Big-O)
 
-| Algoritma | Waktu (Worst Case) | Waktu (Praktik) | Ruang |
+| Algoritma | Waktu Terburuk | Waktu Praktik | Memori |
 |---|---|---|---|
 | Nearest Neighbor Greedy | O(n²) | O(n²) | O(n) |
-| Branch and Bound | O(n!) | Jauh lebih baik dengan pruning | O(n²) — stack rekursi |
-| Held-Karp DP *(tidak dipakai)* | O(n²·2ⁿ) | O(n²·2ⁿ) | O(n·2ⁿ) |
+| Branch and Bound | O(n!) | Lebih baik dengan pruning | O(n²) untuk stack rekursi |
 
-**Derivasi loop/rekursi:**
+**Bagaimana angka ini didapat:**
 
-**Greedy:**
-```
-for setiap pelanggan (n iterasi):          # O(n)
-    for setiap pelanggan belum dikunjungi: # O(n)
-        hitung jarak ke current node       # O(1)
-=> Total: O(n²)
-```
+Greedy punya dua loop bersarang: satu untuk iterasi tiap pelanggan (n kali), satu lagi untuk mencari yang terdekat di antara yang belum dikunjungi (n kali juga). Hasilnya O(n²).
 
-**Branch and Bound:**
 ```
-_backtrack(current, visited_mask, path, dist):
-    for setiap pelanggan belum dikunjungi: # O(n) cabang
-        hitung lower_bound:                # O(n)
-        if bound < best: rekursi          # kedalaman rekursi = n
-=> Worst case: O(n) × O(n) × n! = O(n! × n²), dipangkas oleh pruning
+for setiap pelanggan (n iterasi):
+    for setiap pelanggan belum dikunjungi:  # n iterasi juga
+        hitung jarak ke posisi sekarang     # O(1)
+Total: O(n²)
 ```
 
-Pada dataset ini (n = 12): Greedy selesai dalam ~0.00005 detik; B&B dalam ~0.5 detik.
+Branch and Bound bekerja rekursif. Di setiap level rekursi ada n pilihan cabang, masing-masing menghitung lower bound dalam O(n), dan kedalaman rekursi maksimal adalah n. Worst case-nya O(n! x n²), tapi pruning memotong banyak cabang sehingga waktu aktual jauh lebih kecil.
+
+```
+_backtrack(posisi_sekarang, sudah_dikunjungi, rute, jarak):
+    for setiap pelanggan yang belum dikunjungi:  # O(n) cabang
+        hitung lower_bound sisa perjalanan       # O(n)
+        kalau masih berpotensi lebih baik: rekursi
+Kedalaman rekursi maksimal: n
+Worst case sebelum pruning: O(n! x n²)
+```
+
+Dengan n = 12 pelanggan: Greedy selesai dalam sekitar 0.00005 detik, B&B membutuhkan sekitar 0.5 detik.
 
 ---
 
-## 4. Summary — Keputusan Bisnis
+## 4. Kesimpulan Bisnis
 
-### Hasil Simulasi
+### Hasil simulasi
 
-| | Subsidi (Rp 5.000/L) | Krisis (Rp 20.000/L) |
+| | Skenario Subsidi (Rp 5.000/L) | Skenario Krisis (Rp 20.000/L) |
 |---|---|---|
-| **Greedy — Jarak** | 31.07 km | 31.07 km |
-| **Greedy — TCO** | Rp 5.238 | Rp 20.946 |
-| **Exact B&B — Jarak** | 29.48 km | 29.48 km |
-| **Exact B&B — TCO** | Rp 29.007 | Rp 47.077 |
-| **Rekomendasi** | **Greedy** | **Greedy** |
+| Greedy - jarak | 31.07 km | 31.07 km |
+| Greedy - TCO | Rp 5.238 | Rp 20.946 |
+| Exact B&B - jarak | 29.48 km | 29.48 km |
+| Exact B&B - TCO | Rp 29.007 | Rp 47.077 |
+| Rekomendasi | **Greedy** | **Greedy** |
 
-### Kesimpulan
+### Apa yang bisa disimpulkan
 
-**Pada kedua skenario, Heuristic Greedy lebih menguntungkan secara TCO.**
+Di kedua skenario, Greedy menang secara TCO dengan selisih yang sangat besar.
 
-Meskipun algoritma eksak (B&B) menghasilkan rute ~5% lebih pendek (29.48 km vs 31.07 km), penghematan BBM tersebut tidak cukup untuk menutup biaya komputasi server yang sangat tinggi. Dengan sistem *pay-as-you-go* Rp 50/ms, waktu eksekusi B&B (~500ms) menghasilkan tagihan server **±Rp 25.000 per pengiriman** — jauh lebih besar dari selisih biaya BBM sekitar Rp 170 (subsidi) hingga Rp 686 (krisis).
+Memang benar bahwa B&B menghasilkan rute yang lebih pendek, sekitar 5% lebih efisien (29.48 km vs 31.07 km). Tapi penghematan BBM dari selisih jarak itu hanya sekitar Rp 170 di skenario subsidi dan Rp 686 di skenario krisis. Sementara biaya komputasi server untuk menjalankan B&B dengan sistem pay-as-you-go Rp 50/ms mencapai sekitar Rp 25.000 per pengiriman. Tidak sebanding sama sekali.
 
 ### Titik Break-Even
 
+Pertanyaan yang lebih menarik bukan "algoritma mana yang lebih baik", tapi "pada harga BBM berapa algoritma eksak mulai worth it?". Grafik di bawah ini menjawabnya secara visual.
+
+![Break-Even Chart](docs/breakeven_chart.png)
+
+Kedua garis di grafik adalah fungsi linear dari harga BBM:
+- **Garis biru (Greedy):** TCO rendah di awal karena biaya komputasinya hampir nol, tapi naik lebih cepat karena rutunya lebih boros BBM
+- **Garis merah (B&B):** TCO mulai jauh lebih tinggi karena biaya server yang besar, tapi kemiringannya lebih landai karena rutunya lebih hemat BBM
+
+Perpotongan kedua garis adalah titik break-even, yang bisa dihitung langsung:
+
 ```
-Break-even tercapai saat:  TCO_exact = TCO_greedy
-Selisih konsumsi BBM    :  ±0.034 liter (Greedy lebih boros)
-Selisih biaya komputasi :  ±Rp 25.378 (Exact lebih mahal)
+Selisih konsumsi BBM     : sekitar 0.034 liter (Greedy lebih boros)
+Selisih biaya komputasi  : sekitar Rp 25.000 (B&B lebih mahal)
 
-Break-even harga BBM = Rp 25.378 / 0.034 liter ≈ Rp 740.000/liter
+Harga BBM break-even = Rp 25.000 / 0.034 liter = sekitar Rp 735.000/liter
 ```
 
-**Algoritma eksak baru menguntungkan secara finansial jika harga BBM melebihi ±Rp 740.000/liter** — sebuah angka yang tidak realistis dalam kondisi ekonomi normal maupun krisis sekalipun.
+B&B baru lebih menguntungkan kalau harga BBM melampaui angka itu. Angka yang jelas tidak akan terjadi dalam kondisi ekonomi manapun yang masuk akal, termasuk skenario krisis sekalipun.
 
-**Rekomendasi final:** Pertahankan algoritma Heuristic Greedy untuk operasional sehari-hari. Investasi pada algoritma eksak hanya masuk akal jika biaya komputasi server turun drastis (misalnya migrasi ke on-premise server dengan biaya tetap) atau jika jumlah pelanggan per rute berkurang secara signifikan sehingga waktu eksekusi mendekati nol.
+### Rekomendasi akhir
+
+Pertahankan Greedy untuk operasional harian. Investasi ke algoritma eksak baru layak dipertimbangkan kalau infrastruktur komputasi berubah secara fundamental, misalnya pindah ke on-premise server dengan biaya tetap, sehingga biaya komputasi per milidetik tidak lagi relevan. Selain itu, jumlah pelanggan per rute juga perlu jauh lebih banyak agar penghematan jarak dari B&B terasa signifikan secara finansial.
