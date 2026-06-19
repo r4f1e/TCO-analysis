@@ -105,19 +105,21 @@ Dengan n = 12 pelanggan: Greedy selesai dalam sekitar 0.00005 detik, B&B membutu
 
 ### Hasil simulasi
 
+![Screenshot](docs/screenshot.png)
+
 | | Skenario Subsidi (Rp 5.000/L) | Skenario Krisis (Rp 20.000/L) |
 |---|---|---|
 | Greedy - jarak | 31.07 km | 31.07 km |
-| Greedy - TCO | Rp 5.238 | Rp 20.946 |
+| Greedy - TCO | Rp 5.237 | Rp 20.946 |
 | Exact B&B - jarak | 29.48 km | 29.48 km |
-| Exact B&B - TCO | Rp 29.007 | Rp 47.077 |
+| Exact B&B - TCO | Rp 26.406 | Rp 41.466 |
 | Rekomendasi | **Greedy** | **Greedy** |
 
 ### Apa yang bisa disimpulkan
 
 Di kedua skenario, Greedy menang secara TCO dengan selisih yang sangat besar.
 
-Memang benar bahwa B&B menghasilkan rute yang lebih pendek, sekitar 5% lebih efisien (29.48 km vs 31.07 km). Tapi penghematan BBM dari selisih jarak itu hanya sekitar Rp 170 di skenario subsidi dan Rp 686 di skenario krisis. Sementara biaya komputasi server untuk menjalankan B&B dengan sistem pay-as-you-go Rp 50/ms mencapai sekitar Rp 25.000 per pengiriman. Tidak sebanding sama sekali.
+Memang benar bahwa B&B menghasilkan rute yang lebih pendek, sekitar 5% lebih efisien (29.48 km vs 31.07 km). Tapi penghematan BBM dari selisih jarak itu hanya sekitar Rp 171 di skenario subsidi dan Rp 686 di skenario krisis. Sementara biaya komputasi server untuk menjalankan B&B dengan sistem pay-as-you-go Rp 50/ms mencapai sekitar Rp 21.000 per pengiriman. Tidak sebanding sama sekali.
 
 ### Titik Break-Even
 
@@ -132,10 +134,10 @@ Kedua garis di grafik adalah fungsi linear dari harga BBM:
 Perpotongan kedua garis adalah titik break-even, yang bisa dihitung langsung:
 
 ```
-Selisih konsumsi BBM     : sekitar 0.034 liter (Greedy lebih boros)
-Selisih biaya komputasi  : sekitar Rp 25.000 (B&B lebih mahal)
+Selisih konsumsi BBM     : 0.0343 liter (Greedy lebih boros)
+Selisih biaya komputasi  : Rp 21.273 (B&B lebih mahal)
 
-Harga BBM break-even = Rp 25.000 / 0.034 liter = sekitar Rp 735.000/liter
+Harga BBM break-even = Rp 21.273 / 0.0343 liter = sekitar Rp 620.000/liter
 ```
 
 B&B baru lebih menguntungkan kalau harga BBM melampaui angka itu. Angka yang jelas tidak akan terjadi dalam kondisi ekonomi manapun yang masuk akal, termasuk skenario krisis sekalipun.
